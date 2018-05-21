@@ -38,36 +38,9 @@ IndexManager::~IndexManager()
 
 RC IndexManager::createFile(const string &fileName)
 {
-    printf("hummm");
     // Creating a new paged file.
-/*
-    if (fileExists(fileName))
-        return ERROR;
-    // Attempt to open the file for writing
-    FILE *pFile = fopen(fileName.c_str(), "wb");
-    // Return an error if we fail
-
-    if (pFile == NULL)
-        return ERROR;
-
-    fclose (pFile);
-*/
     if (_pf_manager->createFile(fileName))
         return ERROR;
-    // Setting up the first page.
-    void * firstPageData = calloc(PAGE_SIZE, 1);
-    if (firstPageData == NULL)
-        return ERROR;
-    newIndexPage(firstPageData);
-    // Adds the first record based page.
-    FileHandle handle;
-    if (_pf_manager->openFile(fileName.c_str(), handle))
-        return ERROR;
-    if (handle.appendPage(firstPageData))
-        return ERROR;
-    _pf_manager->closeFile(handle);
-
-    free(firstPageData);
     return SUCCESS;
 
 
@@ -91,8 +64,27 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
-    
-    return -1;
+    unsigned numPages = ixfileHandle.fh.getNumberOfPages();
+    printf("PageNum: %x\n", numPages);
+    if(numPages == 0)
+    {
+	    void * rootPageData = calloc(PAGE_SIZE, 1);
+	    void * leafPageData = calloc(PAGE_SIZE, 1);
+	    if ((rootPageData == NULL) || (leafPageData == NULL))
+		return ERROR;
+
+	    newNonLeafPage(rootPageData, 0);
+   	    newLeafPage(leafPageData, 1);
+
+	    if (ixfileHandle.fh.appendPage(rootPageData))
+		return ERROR;
+            if (ixfileHandle.fh.appendPage(leafPageData))
+                return ERROR;
+
+	    free(rootPageData);
+	    free(leafPageData);
+    }
+    return SUCCESS;
 }
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
@@ -147,28 +139,48 @@ IXFileHandle::~IXFileHandle()
 
 RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount)
 {
-    return -1;
+    return SUCCESS;
 }
 
 
 //Helper Functions
 // Configures a new record based page, and puts it in "page".
-void IndexManager::newIndexPage(void * page)
+void IndexManager::newNonLeafPage(void * page, unsigned pageNum)
 {
     memset(page, 0, PAGE_SIZE);
     // Writes the slot directory header.
     indexDirectoryHeader indexHeader;
-    indexHeader.freeSpaceOffset = PAGE_SIZE;
+    indexHeader.freeSpaceOffset = PAGE_SIZE -4;
     indexHeader.nodeCount = 0;
     setIndexDirectoryHeader(page, indexHeader);
+    setPageNumAtOffset(page, PAGE_SIZE -4, pageNum);
 }
+
+void IndexManager::newLeafPage(void * page, unsigned pageNum)
+{
+    memset(page, 0, PAGE_SIZE);
+    // Writes the slot directory header.
+    indexDirectoryHeader indexHeader;
+    indexHeader.freeSpaceOffset = PAGE_SIZE - 8;
+    indexHeader.nodeCount = 0;
+    setIndexDirectoryHeader(page, indexHeader);
+    setPageNumAtOffset(page, PAGE_SIZE -4, pageNum);
+    setPageNumAtOffset(page, PAGE_SIZE -8, pageNum);
+}
+
 
 
 void IndexManager::setIndexDirectoryHeader(void * page, indexDirectoryHeader indexHeader)
 {   
-       // Setting the index directory header.
+// Setting the index directory header.
     memcpy (page, &indexHeader, sizeof(indexDirectoryHeader));
 }
+
+void IndexManager::setPageNumAtOffset(void * page, int32_t offset, uint32_t pageNum)
+{
+    memcpy((char*)page+offset, &pageNum, INT_SIZE);
+}
+
 
 bool IndexManager::fileExists(const string &fileName)
 {

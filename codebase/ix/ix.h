@@ -67,9 +67,11 @@ class IndexManager {
     private:
         static IndexManager *_index_manager;
 	static PagedFileManager *_pf_manager;
-	void newIndexPage(void * page);
+	void newNonLeafPage(void * page, unsigned pageNum);
 	void setIndexDirectoryHeader(void * page, indexDirectoryHeader indexHeader);
         bool fileExists(const string &fileName);
+	void setPageNumAtOffset(void * page, int32_t offset, uint32_t pageNum);
+	void newLeafPage(void * page, unsigned pageNum);
 
 };
 
