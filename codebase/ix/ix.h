@@ -5,8 +5,13 @@
 #include <string>
 
 #include "../rbf/rbfm.h"
+#include "../rbf/pfm.h"
+
 
 # define IX_EOF (-1)  // end of the index scan
+
+#define SUCCESS 0
+#define ERROR 1
 
 class IX_ScanIterator;
 class IXFileHandle;
@@ -55,7 +60,6 @@ class IndexManager {
 
         // Print the B+ tree in pre-order (in a JSON record format)
         void printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const;
-
     protected:
         IndexManager();
         ~IndexManager();
@@ -65,6 +69,8 @@ class IndexManager {
 	static PagedFileManager *_pf_manager;
 	void newIndexPage(void * page);
 	void setIndexDirectoryHeader(void * page, indexDirectoryHeader indexHeader);
+        bool fileExists(const string &fileName);
+
 };
 
 
@@ -89,6 +95,7 @@ class IX_ScanIterator {
 class IXFileHandle {
     public:
 
+    FileHandle fh;
     // variables to keep counter for each operation
     unsigned ixReadPageCounter;
     unsigned ixWritePageCounter;

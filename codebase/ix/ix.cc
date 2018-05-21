@@ -6,10 +6,16 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+
 
 #include "ix.h"
 
 IndexManager* IndexManager::_index_manager = 0;
+PagedFileManager *IndexManager::_pf_manager = NULL;
+
 
 IndexManager* IndexManager::instance()
 {
@@ -29,28 +35,39 @@ IndexManager::~IndexManager()
 {
 }
 
+
 RC IndexManager::createFile(const string &fileName)
 {
+    printf("hummm");
     // Creating a new paged file.
-    if (_pf_manager->createFile(fileName))
-        return RBFM_CREATE_FAILED;
+/*
+    if (fileExists(fileName))
+        return ERROR;
+    // Attempt to open the file for writing
+    FILE *pFile = fopen(fileName.c_str(), "wb");
+    // Return an error if we fail
 
+    if (pFile == NULL)
+        return ERROR;
+
+    fclose (pFile);
+*/
+    if (_pf_manager->createFile(fileName))
+        return ERROR;
     // Setting up the first page.
     void * firstPageData = calloc(PAGE_SIZE, 1);
     if (firstPageData == NULL)
-        return RBFM_MALLOC_FAILED;
+        return ERROR;
     newIndexPage(firstPageData);
-
     // Adds the first record based page.
     FileHandle handle;
     if (_pf_manager->openFile(fileName.c_str(), handle))
-        return RBFM_OPEN_FAILED;
+        return ERROR;
     if (handle.appendPage(firstPageData))
-        return RBFM_APPEND_FAILED;
+        return ERROR;
     _pf_manager->closeFile(handle);
 
     free(firstPageData);
-
     return SUCCESS;
 
 
@@ -58,24 +75,23 @@ RC IndexManager::createFile(const string &fileName)
 
 RC IndexManager::destroyFile(const string &fileName)
 {
-    fileHandle fd
-    memset(&dev_sys, 0, sizeof dev_sys);
     return _pf_manager->destroyFile(fileName);
 }
 
 RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle)
 {
-    return _pf_manager->openFile(fileName.c_str(), ixfileHandle);
+    return _pf_manager->openFile(fileName.c_str(), ixfileHandle.fh);
 }
 
 RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 {
     
-    return _pf_manager->closeFile(ixfileHandle);
+    return _pf_manager->closeFile(ixfileHandle.fh);
 }
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
+    
     return -1;
 }
 
@@ -153,3 +169,22 @@ void IndexManager::setIndexDirectoryHeader(void * page, indexDirectoryHeader ind
        // Setting the index directory header.
     memcpy (page, &indexHeader, sizeof(indexDirectoryHeader));
 }
+
+bool IndexManager::fileExists(const string &fileName)
+{
+    // If stat fails, we can safely assume the file doesn't exist
+    struct stat sb;
+    return stat(fileName.c_str(), &sb) == 0;
+}
+
+/*unsigned IndexManager::getEntrySize( const Attribute &attribute, const void *key)
+{
+//TBD add stuff for char/varchar keys
+
+//retSize = offsetSlot + pageSlot + key
+   unsigned retSize = (2 * 4) +  4;
+
+}
+*/
+//(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
+

@@ -32,10 +32,10 @@ RC PagedFileManager::createFile(const string &fileName)
     // If the file already exists, error
     if (fileExists(fileName))
         return PFM_FILE_EXISTS;
-
     // Attempt to open the file for writing
     FILE *pFile = fopen(fileName.c_str(), "wb");
     // Return an error if we fail
+
     if (pFile == NULL)
         return PFM_OPEN_FAILED;
 
