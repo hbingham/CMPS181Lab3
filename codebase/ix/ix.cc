@@ -65,7 +65,6 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
     unsigned numPages = ixfileHandle.fh.getNumberOfPages();
-    printf("PageNum: %x\n", numPages);
     if(numPages == 0)
     {
 	    void * rootPageData = calloc(PAGE_SIZE, 1);
@@ -73,19 +72,46 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 	    if ((rootPageData == NULL) || (leafPageData == NULL))
 		return ERROR;
 
-	    newNonLeafPage(rootPageData, 0);
+	    newNonLeafPage(rootPageData, 0, 1);
    	    newLeafPage(leafPageData, 1);
 
 	    if (ixfileHandle.fh.appendPage(rootPageData))
 		return ERROR;
             if (ixfileHandle.fh.appendPage(leafPageData))
                 return ERROR;
-
+	    ixfileHandle.ixAppendPageCounter = ixfileHandle.ixAppendPageCounter + 2;
 	    free(rootPageData);
 	    free(leafPageData);
+
+	    numPages = 2;
+    }
+    ixfileHandle.copyCounterValues();
+    return SUCCESS;
+}
+
+
+RC IndexManager::insertEntryRec(unsigned pageNum, IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
+{
+    void * pageData = calloc(PAGE_SIZE, 1);
+    ixfileHandle.fh.readPage(pageNum, pageData);
+    indexDirectoryHeader indexHeader = getIndexDirectoryHeader(pageData);
+
+    if(!indexHeader.isLeaf)
+    {
+	   unsigned nextPage = getChildPage(pageData, key, indexHeader);
+	   insertEntryRec(nextPage, ixfileHandle, attribute, key, rid);
+    }
+    else
+    {
+//must add logic for stuff that doesnt fit!
+	   unsigned freeSpace = getTotalFreeSpace(pageData, indexHeader);
+	   prepLeafPage(pageData, key, indexHeader, attribute, rid);
+	   ixfileHandle.fh.writePage(pageNum, pageData);
     }
     return SUCCESS;
 }
+
+
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
@@ -137,25 +163,38 @@ IXFileHandle::~IXFileHandle()
 {
 }
 
+void IXFileHandle::copyCounterValues()
+{
+   ixReadPageCounter = fh.readPageCounter;
+   ixAppendPageCounter = fh.appendPageCounter;
+   ixWritePageCounter = fh.writePageCounter;
+}
+
+
 RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount)
 {
+    memcpy(&readPageCount, &ixReadPageCounter, sizeof(ixReadPageCounter));
+    memcpy(&writePageCount, &ixWritePageCounter, sizeof(ixReadPageCounter));
+    memcpy(&appendPageCount, &ixAppendPageCounter, sizeof(ixReadPageCounter));
     return SUCCESS;
 }
 
 
 //Helper Functions
-// Configures a new record based page, and puts it in "page".
-void IndexManager::newNonLeafPage(void * page, unsigned pageNum)
+// Configures a new nonleaf  page, and puts it in "page".
+void IndexManager::newNonLeafPage(void * page, unsigned pageNum, unsigned pageZeroNum)
 {
     memset(page, 0, PAGE_SIZE);
     // Writes the slot directory header.
     indexDirectoryHeader indexHeader;
     indexHeader.freeSpaceOffset = PAGE_SIZE -4;
     indexHeader.nodeCount = 0;
+    indexHeader.isLeaf = false;
     setIndexDirectoryHeader(page, indexHeader);
-    setPageNumAtOffset(page, PAGE_SIZE -4, pageNum);
+    setPageNumAtOffset(page, PAGE_SIZE -4, pageZeroNum);
 }
 
+//configures a new leaf page, puts it in page
 void IndexManager::newLeafPage(void * page, unsigned pageNum)
 {
     memset(page, 0, PAGE_SIZE);
@@ -163,11 +202,11 @@ void IndexManager::newLeafPage(void * page, unsigned pageNum)
     indexDirectoryHeader indexHeader;
     indexHeader.freeSpaceOffset = PAGE_SIZE - 8;
     indexHeader.nodeCount = 0;
+    indexHeader.isLeaf = true;
     setIndexDirectoryHeader(page, indexHeader);
     setPageNumAtOffset(page, PAGE_SIZE -4, pageNum);
     setPageNumAtOffset(page, PAGE_SIZE -8, pageNum);
 }
-
 
 
 void IndexManager::setIndexDirectoryHeader(void * page, indexDirectoryHeader indexHeader)
@@ -189,14 +228,79 @@ bool IndexManager::fileExists(const string &fileName)
     return stat(fileName.c_str(), &sb) == 0;
 }
 
-/*unsigned IndexManager::getEntrySize( const Attribute &attribute, const void *key)
+indexDirectoryHeader IndexManager::getIndexDirectoryHeader(void * page)
 {
-//TBD add stuff for char/varchar keys
-
-//retSize = offsetSlot + pageSlot + key
-   unsigned retSize = (2 * 4) +  4;
-
+    // Getting the index header.
+    indexDirectoryHeader indexHeader;
+    memcpy (&indexHeader, page, sizeof(indexDirectoryHeader));
+    return indexHeader;
 }
-*/
-//(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
+
+//gets next child pag
+// needs to be implemented beyond the base case
+unsigned IndexManager::getChildPage(void * page, const void *key, indexDirectoryHeader header)
+{
+   unsigned nextPageNum;
+   if(header.nodeCount == 0)
+   {
+	   memcpy(&nextPageNum, ((char*) page + PAGE_SIZE - 4), INT_SIZE);
+	   return nextPageNum;
+   }
+   return 69;
+}
+
+
+//inserts the key and rid into the leaf page
+//also saved the offset of the key after the header
+RC IndexManager::prepLeafPage(void * page, const void *key, indexDirectoryHeader header,  const Attribute &attribute, const RID &rid)
+{
+//Precondition: stuff fits, need to insert IN ORDER
+//future note: OFFSETS COULD JUST BE IN ORDER AT THE BEGINNING instead of actually ordering the data
+//will allow for easy deletions and dogags
+   unsigned offset = header.freeSpaceOffset;
+   unsigned keySize = getKeySize(key, attribute);
+   offset = offset - getKeySize(key, attribute);
+   memcpy(page, &key, keySize);
+   offset = offset - (INT_SIZE*2);
+   memcpy(page, &rid, INT_SIZE*2);
+   return SUCCESS;
+}
+
+//calculates the amount of free space on the page
+unsigned IndexManager::getTotalFreeSpace(void * page, indexDirectoryHeader header)
+{
+   unsigned beginningOfPage = 2 * INT_SIZE + 1 + header.nodeCount * INT_SIZE;
+   return header.freeSpaceOffset - beginningOfPage;
+}
+
+//returns the keySize
+unsigned IndexManager::getKeySize(const void *key, const Attribute &attribute)
+{
+   unsigned size = 0;
+   switch (attribute.type)
+   {
+	    case TypeInt:
+		size += INT_SIZE;
+	    break;
+	    case TypeReal:
+		size += REAL_SIZE;
+	    break;
+	    case TypeVarChar:
+		uint32_t varcharSize;
+		// We have to get the size of the VarChar field by reading the integer that precedes the string value itself
+		memcpy(&varcharSize, (char*) key, VARCHAR_LENGTH_SIZE);
+		size += varcharSize + INT_SIZE;
+    		break;
+   }
+   return size;
+}
+
+
+//TO MAKE:
+//insertKey
+//insertOffset
+//increment nodeCount
+//insert RID
+//deal with siblings
+//copying up on overflow
 

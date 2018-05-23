@@ -18,10 +18,10 @@ class IXFileHandle;
 
 typedef struct indexDirectoryHeader
 {
+    bool isLeaf;
     uint16_t freeSpaceOffset;
     uint16_t nodeCount;
 } indexDirectoryHeader;
-
 
 
 
@@ -67,12 +67,17 @@ class IndexManager {
     private:
         static IndexManager *_index_manager;
 	static PagedFileManager *_pf_manager;
-	void newNonLeafPage(void * page, unsigned pageNum);
+	void newNonLeafPage(void * page, unsigned pageNum, unsigned pageZeroNum);
 	void setIndexDirectoryHeader(void * page, indexDirectoryHeader indexHeader);
         bool fileExists(const string &fileName);
 	void setPageNumAtOffset(void * page, int32_t offset, uint32_t pageNum);
 	void newLeafPage(void * page, unsigned pageNum);
-
+	RC insertEntryRec(unsigned pageNum, IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid);
+	indexDirectoryHeader getIndexDirectoryHeader(void * page);
+	unsigned getChildPage(void * page, const void *key, indexDirectoryHeader header);
+	RC prepLeafPage(void * page, const void *key, indexDirectoryHeader header,  const Attribute &attribute, const RID &rid);
+	unsigned getTotalFreeSpace(void * page, indexDirectoryHeader header);
+	unsigned getKeySize(const void *key, const Attribute &attribute);
 };
 
 
@@ -111,6 +116,8 @@ class IXFileHandle {
 
 	// Put the current counter values of associated PF FileHandles into variables
 	RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
+        void copyCounterValues();
+    private:
 
 };
 
