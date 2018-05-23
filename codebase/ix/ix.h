@@ -78,6 +78,7 @@ class IndexManager {
 	RC prepLeafPage(void * page, const void *key, indexDirectoryHeader header,  const Attribute &attribute, const RID &rid);
 	unsigned getTotalFreeSpace(void * page, indexDirectoryHeader header);
 	unsigned getKeySize(const void *key, const Attribute &attribute);
+	void insertOffset(unsigned offset, unsigned slotNum);
 };
 
 

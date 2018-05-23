@@ -295,6 +295,11 @@ unsigned IndexManager::getKeySize(const void *key, const Attribute &attribute)
    return size;
 }
 
+void IndexManager::insertOffset(void * page, unsigned offset, unsigned slotNum)
+{
+   unsigned insertOffset = (INT_SIZE * 2) + 1 +  (INT_SIZE * slotNum);
+}
+
 
 //TO MAKE:
 //insertKey
