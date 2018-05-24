@@ -85,6 +85,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
 	    numPages = 2;
     }
+    unsigned rootPageNum = 0;
+    insertEntryRec(rootPageNum, ixfileHandle, attribute, key, rid);
     ixfileHandle.copyCounterValues();
     return SUCCESS;
 }
@@ -98,7 +100,7 @@ RC IndexManager::insertEntryRec(unsigned pageNum, IXFileHandle &ixfileHandle, co
 
     if(!indexHeader.isLeaf)
     {
-	   unsigned nextPage = getChildPage(pageData, key, indexHeader);
+	   unsigned nextPage = getChildPage(pageData, key, indexHeader, attribute);
 	   insertEntryRec(nextPage, ixfileHandle, attribute, key, rid);
     }
     else
@@ -238,7 +240,7 @@ indexDirectoryHeader IndexManager::getIndexDirectoryHeader(void * page)
 
 //gets next child pag
 // needs to be implemented beyond the base case
-unsigned IndexManager::getChildPage(void * page, const void *key, indexDirectoryHeader header)
+unsigned IndexManager::getChildPage(void * page, const void *key, indexDirectoryHeader header, const Attribute &attribute)
 {
    unsigned nextPageNum;
    if(header.nodeCount == 0)
@@ -246,6 +248,8 @@ unsigned IndexManager::getChildPage(void * page, const void *key, indexDirectory
 	   memcpy(&nextPageNum, ((char*) page + PAGE_SIZE - 4), INT_SIZE);
 	   return nextPageNum;
    }
+   unsigned nextSlot = findInsertionSlot(page,key, header, attribute);
+   
    return 69;
 }
 
@@ -259,10 +263,19 @@ RC IndexManager::prepLeafPage(void * page, const void *key, indexDirectoryHeader
 //will allow for easy deletions and dogags
    unsigned offset = header.freeSpaceOffset;
    unsigned keySize = getKeySize(key, attribute);
+
    offset = offset - getKeySize(key, attribute);
    memcpy(page, &key, keySize);
+
+   insertOffset(page, key, header, offset, attribute);
+
    offset = offset - (INT_SIZE*2);
    memcpy(page, &rid, INT_SIZE*2);
+
+   header.nodeCount++;
+   header.freeSpaceOffset = offset;
+   setIndexDirectoryHeader(page, header);
+
    return SUCCESS;
 }
 
@@ -295,17 +308,106 @@ unsigned IndexManager::getKeySize(const void *key, const Attribute &attribute)
    return size;
 }
 
-void IndexManager::insertOffset(void * page, unsigned offset, unsigned slotNum)
+
+void IndexManager::insertOffset(void * page, const void *key, indexDirectoryHeader header, unsigned offset, const Attribute &attribute)
 {
-   unsigned insertOffset = (INT_SIZE * 2) + 1 +  (INT_SIZE * slotNum);
+   void * helperPageData = calloc(PAGE_SIZE, 1);
+   memcpy(helperPageData, page, PAGE_SIZE);
+   unsigned insertSlot = findInsertionSlot(page,key, header, attribute);
+   unsigned insertOffset, helperPageOffset;
+   unsigned appendCount = 0;
+   for (unsigned i = 0; i <= header.nodeCount; i++)
+   {
+	   insertOffset = (INT_SIZE * 2) + 1 + (INT_SIZE * i);
+	   if (i == insertSlot)
+	   {
+		memcpy((char*) page + insertOffset, &offset, INT_SIZE);
+	   }
+	   else
+	   {
+		helperPageOffset = (INT_SIZE * 2) + 1 + (INT_SIZE * appendCount);
+		memcpy((char*) page + insertOffset, (char*) helperPageData + helperPageOffset, INT_SIZE);
+		appendCount++;
+	   }
+   }
+   memcpy((char*) page + insertOffset, &offset, INT_SIZE);
+}
+
+unsigned IndexManager::findInsertionSlot(void * page, const void *key, indexDirectoryHeader header, const Attribute &attribute)
+{
+
+   void * compKey;
+   for(unsigned i = 0; i < header.nodeCount; i++)
+   {
+	   getKeyAtSlot(page, compKey, i, attribute);
+	   if (greaterEqual(key, compKey, attribute)) return i - 1;
+   }
+   return header.nodeCount;
+}
+
+
+
+void IndexManager::getKeyAtSlot(void * page, void *key, unsigned slot, const Attribute &attribute)
+{
+   unsigned offsetOffset = (1 +  (2 + slot ) * INT_SIZE);
+   unsigned keyOffset;
+   memcpy(&keyOffset, ((char*) page + offsetOffset), INT_SIZE);
+   getKeyAtOffset(page, key, keyOffset, attribute);
+}
+
+
+
+void IndexManager::getKeyAtOffset(void * page, void *key, unsigned offset, const Attribute &attribute)
+{
+   switch (attribute.type)
+   {
+            case TypeInt:
+                memcpy(key,((char*) page + offset), INT_SIZE);
+            break;
+            case TypeReal:
+		memcpy(key,((char*) page + offset), REAL_SIZE);
+            break;
+            case TypeVarChar:
+                uint32_t varcharSize;
+                // We have to get the size of the VarChar field by reading the integer that precedes the string value itself
+                memcpy(&varcharSize, (char*) page, VARCHAR_LENGTH_SIZE);
+                memcpy((char*) key, (char*) page, varcharSize);
+                break;
+   }
+}
+
+bool IndexManager::greaterEqual(const void * key1, void * key2, const Attribute &attribute)
+{
+   switch (attribute.type)
+   {
+            case TypeInt:
+		uint32_t intKey1, intKey2;
+                memcpy(&intKey1, key1, INT_SIZE);
+		memcpy(&intKey2, key2, INT_SIZE);
+		return intKey1 >= intKey2;
+            break;
+            case TypeReal:
+                float floatKey1, floatKey2;
+                memcpy(&floatKey1, key1, INT_SIZE);
+                memcpy(&floatKey2, key2, INT_SIZE);
+                return floatKey1 >= floatKey2;
+            break;
+            case TypeVarChar:
+/*
+                uint32_t varcharSize;
+                // We have to get the size of the VarChar field by reading the integer that precedes the string value itself
+                memcpy(&varcharSize, (char*) page, VARCHAR_LENGTH_SIZE);
+                memcpy((char*) key, (char*) page, varcharSize);
+*/
+		return true;
+                break;
+   }
 }
 
 
 //TO MAKE:
-//insertKey
-//insertOffset
-//increment nodeCount
-//insert RID
+//order offsets
+
 //deal with siblings
 //copying up on overflow
 

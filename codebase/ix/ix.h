@@ -74,11 +74,15 @@ class IndexManager {
 	void newLeafPage(void * page, unsigned pageNum);
 	RC insertEntryRec(unsigned pageNum, IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid);
 	indexDirectoryHeader getIndexDirectoryHeader(void * page);
-	unsigned getChildPage(void * page, const void *key, indexDirectoryHeader header);
+	unsigned getChildPage(void * page, const void *key, indexDirectoryHeader header, const Attribute &attribute);
 	RC prepLeafPage(void * page, const void *key, indexDirectoryHeader header,  const Attribute &attribute, const RID &rid);
 	unsigned getTotalFreeSpace(void * page, indexDirectoryHeader header);
 	unsigned getKeySize(const void *key, const Attribute &attribute);
-	void insertOffset(unsigned offset, unsigned slotNum);
+	void insertOffset(void * page, const void *key, indexDirectoryHeader header, unsigned offset, const Attribute &attribute);
+	unsigned findInsertionSlot(void * page, const void *key, indexDirectoryHeader header, const Attribute &attribute);
+	void getKeyAtOffset(void * page, void *key, unsigned offset, const Attribute &attribute);
+	bool greaterEqual(const void * key1, void * key2, const Attribute &attribute);
+	void getKeyAtSlot(void * page, void *key, unsigned slot, const Attribute &attribute);
 };
 
 
