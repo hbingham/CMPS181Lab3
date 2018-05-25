@@ -1,27 +1,43 @@
 1. Basic information
-Team number (e.g., 01) : 
-#1 Submitter ID : 
-#1 Student Name : 
+Team number (e.g., 01) : 13
+#1 Submitter ID : 1415490
+#1 Student Name : Hunter Bingham
+
+#2 ID : 1404451
+#2 Name : Kevin Prabhu
+
+#3 ID : 1351750
+#3 Name : Ian Hardy
 
 
 
 2. Index Entry Format
 - Show your index entry design (structure). 
+[record OR childPageNumber][keyVal]
+In non leaf pages, the child page for the values smaller than the next key is saved with each key. The page for being smaller than the smallest key is saved at the end of the page.
+
+In leaf pages, each key is saved with its corresponding RID 8 being saved 8 bytes before it.
 
 
 3. Page Format
 - Show your internal-page (non-leaf node) design.
+[  header  ][0][ offsets ] ==>    <== [key][page][key][page] 
+Pages and keys are inserted from the right, the offsets grow from the left. the 0 is a value in the header, a boolean that signifies wether the page is a non-leaf or a leaf. 0 stands for non-leaf
 
 - Show your leaf-page (leaf node) design.
+[  header  ][1][ offsets ]==> <==[key][page][key][page][RS][LS] 
+Pages and keys are inserted from the right, the offsets grow from the left. the 1 is a value in the header, a boolean that signifies wether the page is a non-leaf or a leaf. 1 stands for leaf. For leaf pages, the last 4 bytes contain the pointer to hte left sibling, and the 4 bytes to the left of that contain the pointer to the right sibling.
+
 
 
 4. Implementation Detail
 - Have you added your own source file (.cc or .h)?
-
+Nope.
 
 - Other implementation details:
+We believe insert entries is working, the remainder of the functions were all worked on, however did not work. The code for scan is at the bottom of the file, commented out, because it caused compiler errors that we did not have time to resolve
+
 
 
 5. Other (optional)
 - Freely use this section to tell us about things that are related to the project 3, but not related to the other sections (optional).  For example, if you chose to do the extra credit (non-lazy deletion), please tell us here what you did.
-

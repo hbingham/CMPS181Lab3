@@ -12,6 +12,7 @@
 
 #define SUCCESS 0
 #define ERROR 1
+#define DOESNT_FIT 2
 
 class IX_ScanIterator;
 class IXFileHandle;
@@ -72,10 +73,10 @@ class IndexManager {
         bool fileExists(const string &fileName);
 	void setPageNumAtOffset(void * page, int32_t offset, uint32_t pageNum);
 	void newLeafPage(void * page, unsigned pageNum);
-	RC insertEntryRec(unsigned pageNum, IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid);
+	RC insertEntryRec(unsigned pageNum, IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid, void * copyKey);
 	indexDirectoryHeader getIndexDirectoryHeader(void * page);
 	unsigned getChildPage(void * page, const void *key, indexDirectoryHeader header, const Attribute &attribute);
-	RC prepLeafPage(void * page, const void *key, indexDirectoryHeader header,  const Attribute &attribute, const RID &rid);
+	RC prepPage(void * page, const void *key, indexDirectoryHeader header,  const Attribute &attribute, const RID &rid, unsigned pageNum);
 	unsigned getTotalFreeSpace(void * page, indexDirectoryHeader header);
 	unsigned getKeySize(const void *key, const Attribute &attribute);
 	void insertOffset(void * page, const void *key, indexDirectoryHeader header, unsigned offset, const Attribute &attribute);
@@ -83,7 +84,15 @@ class IndexManager {
 	void getKeyAtOffset(void * page, void *key, unsigned offset, const Attribute &attribute);
 	bool greaterEqual(const void * key1, void * key2, const Attribute &attribute);
 	void getKeyAtSlot(void * page, void *key, unsigned slot, const Attribute &attribute);
+	unsigned getKeyOffset(void * page, unsigned slotNum);
+	RC splitPage(void * page, const void *key, const Attribute &attribute, IXFileHandle &handle, void * copyKey, indexDirectoryHeader header, unsigned pageNum, const RID &rid);
+	unsigned copyOverKey(const void * fromPage, void * toPage,  unsigned fromOffset, unsigned toOffset,const Attribute &attribute);
+	RC splitPageNonLeaf(void * page, const void *key, const Attribute &attribute, IXFileHandle &handle, void * copyKey, indexDirectoryHeader header, unsigned pageNum);
+	RC splitPageLeaf(void * page, const void *key, const Attribute &attribute, IXFileHandle &handle, void * copyKey, indexDirectoryHeader header, unsigned pageNum, const RID &rid);
+	void printByAttribute(const void *data, const Attribute &attribute) const;
+	void recursePrint(IXFileHandle &ixfileHandle, const Attribute &attribute, unsigned currPage) const;
 };
+
 
 
 class IX_ScanIterator {
@@ -123,6 +132,36 @@ class IXFileHandle {
 	RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
         void copyCounterValues();
     private:
+/*
+        IndexManager *im;
+        uint32_t currPage;
+        uint32_t currSlot;
+        const void* lowVal;
+        const void* highVal;
+        const void* currVal;
+        void *pageData;
+        const Attribute attr; 
+        CompOp lowCompOp;
+        CompOp highCompOp;
+        CompOp currCompOp;
+        IXFileHandle *ixFH;
+        unsigned scanStartPage;
+        unsigned scanStartSlot;
+        
+        RC scanInit(IXFileHandle &ix,
+        		const Attribute a,
+        		const void *lk,
+        		const void *hk,
+        		bool lki, 
+        		bool hki);
+        
+        unsigned search(const void *key, bool lowKeyInclusive, IXFileHandle &ixfileHandle, unsigned pageNum);
+        bool compare();
+        bool compare(int recordInt, CompOp compOp, const void *value);
+        bool compare(float recordReal, CompOp compOp, const void *value);
+        bool compare(char *recordString, CompOp compOp, const void *value);
+*/
+
 
 };
 
